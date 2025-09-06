@@ -1,0 +1,9 @@
+{
+  "series_count": 731,
+  "survey_count": 68,
+  "_metadata": {
+    "updated_at": "2025-08-29T15:06:33.920844",
+    "run_id": "local-90",
+    "connector": "bureau-labor-statistics"
+  }
+}

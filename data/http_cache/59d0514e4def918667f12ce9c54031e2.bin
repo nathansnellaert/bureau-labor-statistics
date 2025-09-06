@@ -1,0 +1,9 @@
+{"status":"REQUEST_SUCCEEDED","responseTime":17,"message":[],"Results":{
+"series":
+[{"seriesID":"WSU001"},
+{"seriesID":"WSU020"},
+{"seriesID":"WSU200"},
+{"seriesID":"WSU100"},
+{"seriesID":"WSU010"},
+{"seriesID":"WSU002"}]
+}}

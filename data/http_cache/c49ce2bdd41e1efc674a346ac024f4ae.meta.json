@@ -1,0 +1,24 @@
+{
+  "status_code": 200,
+  "headers": {
+    "date": "Fri, 29 Aug 2025 05:52:33 GMT",
+    "content-type": "application/json",
+    "vary": "Origin, Accept-Encoding",
+    "apc-route-id": "_02_09v",
+    "access-control-allow-headers": "origin,x-requested-with,access-control-request-headers,content-type,access-control-request-method,accept",
+    "access-control-allow-origin": "*",
+    "route-id": "_t8_07v;",
+    "keep-alive": "timeout=5, max=58",
+    "connection": "Keep-Alive",
+    "pool-info": "AP02",
+    "x-frame-options": "ALLOW-FROM https://www.bls.gov",
+    "content-security-policy": "frame-ancestors https://*.bls.gov",
+    "cross-origin-opener-policy": "same-origin",
+    "strict-transport-security": "max-age=31536000; includeSubDomains; Preload",
+    "content-encoding": "gzip",
+    "transfer-encoding": "chunked"
+  },
+  "url": "https://api.bls.gov/publicAPI/v2/timeseries/popular",
+  "method": "GET",
+  "cached_at": "2025-08-29T14:52:34.138765"
+}

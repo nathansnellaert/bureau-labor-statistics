@@ -1,0 +1,99 @@
+{
+  "dataset": "popular_series",
+  "timestamp": "2025-08-29T14:57:32.231176",
+  "row_count": 731,
+  "column_count": 3,
+  "memory_usage_mb": 0.02,
+  "columns": [
+    {
+      "name": "series_id",
+      "type": "string",
+      "nullable": true,
+      "null_count": 731,
+      "cardinality": 731,
+      "sample_values": [
+        "APU0000701111",
+        "APU0000701312",
+        "APU0000702111",
+        "APU0000703111",
+        "APU0000703112"
+      ]
+    },
+    {
+      "name": "survey",
+      "type": "string",
+      "nullable": true,
+      "null_count": 731,
+      "cardinality": 31,
+      "sample_values": [
+        "AP",
+        "BD",
+        "CE",
+        "CI",
+        "CM"
+      ]
+    },
+    {
+      "name": "popularity_rank",
+      "type": "int64",
+      "nullable": true,
+      "null_count": 731,
+      "min": 1,
+      "max": 25,
+      "mean": 12.922,
+      "stddev": 7.2341
+    }
+  ],
+  "sample_rows": [
+    {
+      "series_id": "APU0000701111",
+      "survey": "AP",
+      "popularity_rank": 9
+    },
+    {
+      "series_id": "APU0000701312",
+      "survey": "AP",
+      "popularity_rank": 8
+    },
+    {
+      "series_id": "APU0000702111",
+      "survey": "AP",
+      "popularity_rank": 5
+    },
+    {
+      "series_id": "APU0000703111",
+      "survey": "AP",
+      "popularity_rank": 17
+    },
+    {
+      "series_id": "APU0000703112",
+      "survey": "AP",
+      "popularity_rank": 10
+    },
+    {
+      "series_id": "APU0000703213",
+      "survey": "AP",
+      "popularity_rank": 21
+    },
+    {
+      "series_id": "APU0000703311",
+      "survey": "AP",
+      "popularity_rank": 25
+    },
+    {
+      "series_id": "APU0000703613",
+      "survey": "AP",
+      "popularity_rank": 20
+    },
+    {
+      "series_id": "APU0000704111",
+      "survey": "AP",
+      "popularity_rank": 7
+    },
+    {
+      "series_id": "APU0000704212",
+      "survey": "AP",
+      "popularity_rank": 24
+    }
+  ]
+}
