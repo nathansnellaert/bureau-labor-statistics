@@ -1,5 +1,5 @@
 import os
-os.environ['CONNECTOR_NAME'] = 'bureau-labor-statistics'
+os.environ['CONNECTOR_NAME'] = 'bls'
 os.environ['RUN_ID'] = os.getenv('RUN_ID', 'local-run')
 
 from utils import validate_environment, upload_data
@@ -14,15 +14,15 @@ def main():
     
     # First, get all available surveys
     surveys_data = process_surveys()
-    upload_data(surveys_data, "surveys")
+    upload_data(surveys_data, "bls_surveys")
     
     # Get popular series for each survey
     popular_series_data = process_popular_series(surveys_data)
-    upload_data(popular_series_data, "popular_series")
+    upload_data(popular_series_data, "bls_popular_series")
     
     # Fetch actual time series data for popular series
     series_data = process_series_data(popular_series_data)
-    upload_data(series_data, "series_data")
+    upload_data(series_data, "bls_series_data")
 
 if __name__ == "__main__":
     main()
