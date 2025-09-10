@@ -4,7 +4,7 @@ import os
 os.environ['CONNECTOR_NAME'] = 'bureau-labor-statistics'
 os.environ['RUN_ID'] = 'debug-run'
 os.environ['ENABLE_HTTP_CACHE'] = 'true'
-os.environ['STORAGE_BACKEND'] = 'local'
+os.environ['CATALOG_TYPE'] = 'local'
 os.environ['DATA_DIR'] = 'data'
 
 # Check if API key is set
