@@ -3,7 +3,19 @@ name = "bureau-labor-statistics"
 version = "1.0.0"
 description = "Bureau of Labor Statistics data connector"
 requires-python = ">=3.11"
-dependencies = [ "boto3", "duckdb", "httpx", "pyarrow", "pyiceberg", "ratelimit", "requests>=2.31.0", "tenacity",]
+dependencies = [
+ "beautifulsoup4>=4.13.5",
+ "boto3",
+ "duckdb",
+ "httpx",
+ "pyarrow",
+ "pyiceberg",
+ "ratelimit",
+ "requests>=2.31.0",
+ "sqlalchemy>=2.0.43",
+ "tenacity",
+ "tqdm>=4.67.1",
+]
 
 [build-system]
 requires = [ "hatchling",]

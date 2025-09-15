@@ -26,6 +26,7 @@ def process_surveys():
     # Convert to records format
     records = []
     for survey in surveys:
+        print(survey)
         record = {
             "survey_abbreviation": survey.get("survey_abbreviation", ""),
             "survey_name": survey.get("survey_name", ""),
