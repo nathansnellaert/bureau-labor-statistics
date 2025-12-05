@@ -21,26 +21,25 @@ jobs:
     - name: Install dependencies
       run: uv sync
     - name: Run connector
-      run: uv run python main.py
+      run: uv run python src/main.py
       env:
         PYTHONUNBUFFERED: 1
         RUN_ID: ${{ github.run_id }}
-        CATALOG_TYPE: subsets
-        SUBSETS_API_KEY: ${{ secrets.SUBSETS_API_KEY }}
-        SUBSETS_CATALOG_URL: ${{ secrets.SUBSETS_CATALOG_URL }}
-        SUBSETS_WAREHOUSE: ${{ secrets.SUBSETS_WAREHOUSE }}
+        ENVIRONMENT: prod
         BLS_API_KEY: ${{ secrets.BLS_API_KEY }}
-    - name: Commit state files
+    - name: Commit data and state files
       if: always()  # Run regardless of success/failure
       run: |
         git config --global user.email "github-actions[bot]@users.noreply.github.com"
         git config --global user.name "github-actions[bot]"
-        
-        # Check if there are any changes to .state files
-        if git diff --quiet HEAD -- '.state/**'; then
-          echo "No state changes to commit"
+
+        # Add both data and state files
+        git add data/ .state/ || true
+
+        # Check if there are any changes to commit
+        if git diff --quiet HEAD; then
+          echo "No changes to commit"
         else
-          git add '.state/**'
-          git commit -m "Update state files from run ${{ github.run_id }}"
+          git commit -m "Update data and state from run ${{ github.run_id }}"
           git push
         fi

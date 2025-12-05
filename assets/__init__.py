@@ -1,1 +1,0 @@
-# Assets package for Bureau of Labor Statistics connector

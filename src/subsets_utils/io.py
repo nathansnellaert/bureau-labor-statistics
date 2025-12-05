@@ -11,7 +11,16 @@ from . import debug
 from .environment import get_data_dir
 
 
-def upload_data(data: pa.Table, dataset_name: str, mode: str = "append", merge_key: str = None) -> str:
+def upload_data(data: pa.Table, dataset_name: str, metadata: dict = None, mode: str = "append", merge_key: str = None) -> str:
+    """Upload a PyArrow table to a local Delta table.
+
+    Args:
+        data: The PyArrow table to upload
+        dataset_name: Name of the dataset (used as directory name)
+        metadata: Optional metadata dict with keys: title, description, columns
+        mode: 'append', 'overwrite', or 'merge'
+        merge_key: Required when mode='merge', the column to merge on
+    """
     if mode not in ("append", "overwrite", "merge"):
         raise ValueError(f"Invalid mode '{mode}'. Must be 'append', 'overwrite', or 'merge'.")
 
@@ -32,9 +41,13 @@ def upload_data(data: pa.Table, dataset_name: str, mode: str = "append", merge_k
 
     table_path = Path(get_data_dir()) / "subsets" / dataset_name
 
+    # Extract metadata for Delta table
+    table_name = metadata.get("title") if metadata else None
+    table_description = json.dumps(metadata) if metadata else None
+
     if mode == "merge":
         if not table_path.exists():
-            write_deltalake(str(table_path), data)
+            write_deltalake(str(table_path), data, name=table_name, description=table_description)
             print(f"Created new table {dataset_name}")
         else:
             dt = DeltaTable(str(table_path))
@@ -57,6 +70,8 @@ def upload_data(data: pa.Table, dataset_name: str, mode: str = "append", merge_k
             str(table_path),
             data,
             mode=mode,
+            name=table_name,
+            description=table_description,
             schema_mode="merge" if mode == "append" else "overwrite"
         )
 
@@ -191,9 +206,8 @@ def load_asset(asset_name: str) -> pa.Table:
 
 
 def _get_raw_path(asset_id: str, extension: str) -> Path:
-    """Raw directory: DATA_DIR/raw/CONNECTOR/asset_id.ext"""
-    connector = os.environ.get('CONNECTOR_NAME', 'unknown')
-    path = Path(get_data_dir()) / "raw" / connector / f"{asset_id}.{extension}"
+    """Raw directory: DATA_DIR/raw/asset_id.ext"""
+    path = Path(get_data_dir()) / "raw" / f"{asset_id}.{extension}"
     path.parent.mkdir(parents=True, exist_ok=True)
     return path
 

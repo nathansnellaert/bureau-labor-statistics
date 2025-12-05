@@ -28,3 +28,17 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.bak
+
+# Only track production state
+.state/
+!.state/prod/
+http_cache/
+logs/
+
+# Synced from template
+# Cache and logs
+# Development files
+# Output data (published to R2 via GitHub Actions)
+data/
+dev.py
+dev/
