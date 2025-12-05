@@ -52,6 +52,7 @@ ALL_DIMENSIONS = [
     "demographic_gender",
     "demographic_race",
     "demographic_education",
+    "unit",
 ]
 
 
@@ -65,18 +66,43 @@ def parse_value(value):
         return None
 
 
+def extract_unit(series_title: str) -> str:
+    """Extract unit from series title."""
+    title_lower = series_title.lower()
+    if "percent change" in title_lower or "percent of" in title_lower:
+        return "percent"
+    if "index" in title_lower:
+        return "index"
+    if "in thousands" in title_lower or "thousands" in title_lower:
+        return "thousands"
+    if "in millions" in title_lower:
+        return "millions"
+    if "in dollars" in title_lower or "dollars per" in title_lower:
+        return "dollars"
+    if "hours" in title_lower and ("average" in title_lower or "weekly" in title_lower):
+        return "hours"
+    if "rate" in title_lower:
+        return "rate"
+    return ""
+
+
 def parse_series_data(series_data: dict) -> list[dict]:
     """Parse a single series with full catalog metadata."""
     records = []
     series_id = series_data.get("seriesID", "")
     catalog = series_data.get("catalog") or {}
 
+    # Use series_title as indicator - it's self-documenting
+    series_title = catalog.get("series_title", "")
+    unit = extract_unit(series_title)
+
     series_info = {
         "survey_abbreviation": catalog.get("survey_abbreviation", series_id[:2] if series_id else ""),
         "seasonality": catalog.get("seasonality", ""),
         "area": catalog.get("area", ""),
         "area_type": catalog.get("area_type", ""),
-        "indicator": catalog.get("measure_data_type", ""),
+        "indicator": series_title,  # Full descriptive title
+        "unit": unit,
         "industry": catalog.get("commerce_industry", catalog.get("industry", "")),
         "occupation": catalog.get("occupation", ""),
         "demographic_age": catalog.get("demographic_age", ""),
@@ -178,8 +204,8 @@ def make_metadata(dataset_id: str, survey_desc: str, varying_cols: list[str],
 
     col_descs = {
         "date": "Date of observation (YYYY, YYYY-MM, YYYY-QN, or YYYY-HN)",
-        "indicator": "The measure or metric being reported",
-        "value": "Numeric value",
+        "indicator": "Full series title describing what the value represents",
+        "value": "Numeric value (see indicator and unit for interpretation)",
     }
 
     dim_descriptions = {
@@ -192,6 +218,7 @@ def make_metadata(dataset_id: str, survey_desc: str, varying_cols: list[str],
         "demographic_gender": "Gender",
         "demographic_race": "Race/ethnicity",
         "demographic_education": "Education level",
+        "unit": "Unit of measurement (percent, index, thousands, dollars, hours, rate)",
     }
 
     for col in varying_cols:
