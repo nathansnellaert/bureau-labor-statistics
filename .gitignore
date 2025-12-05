@@ -38,7 +38,16 @@ logs/
 # Synced from template
 # Cache and logs
 # Development files
-# Output data (published to R2 via GitHub Actions)
-data/
+# Output data (subsets is published, raw is local cache)
+# Python environment
+# State (keep prod state for tracking)
+.venv/
+__pycache__/
+data/raw/
+data/bls/
+data/bureau-labor-statistics/
+data/catalog/
+data/http_cache/
+bls_series.csv
 dev.py
 dev/
