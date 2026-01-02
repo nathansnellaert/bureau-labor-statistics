@@ -51,3 +51,7 @@ data/http_cache/
 bls_series.csv
 dev.py
 dev/
+
+# Synced from template
+# Output data (synced via R2, not git)
+data/

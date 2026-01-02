@@ -216,10 +216,8 @@ def validate(table: pa.Table, schema: dict) -> None:
             duplicates = len(values) - len(set(values))
             assert duplicates == 0, f"Column '{unique[0]}' has {duplicates} duplicate values"
         else:
-            # Composite key
-            rows = [
-                tuple(table.column(col).to_pylist()[i] for col in unique)
-                for i in range(len(table))
-            ]
+            # Composite key - convert columns once, then zip
+            columns_as_lists = [table.column(col).to_pylist() for col in unique]
+            rows = list(zip(*columns_as_lists))
             duplicates = len(rows) - len(set(rows))
             assert duplicates == 0, f"Columns {unique} have {duplicates} duplicate combinations"
