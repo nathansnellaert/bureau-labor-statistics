@@ -2,22 +2,35 @@
 
 The bls_series.csv file was previously crawled from BLS Data Finder and contains
 ~1M series ranked by popularity. This module converts it to standard JSON format.
+
+If series_catalog.json already exists in raw data, this step is skipped.
 """
 
 import csv
 import os
 
-from subsets_utils import save_raw_json, get_data_dir
+from subsets_utils import save_raw_json, load_raw_json, get_data_dir
 
 
 def run():
     """Convert bls_series.csv to series_catalog.json."""
+    # Skip if catalog already exists
+    try:
+        existing = load_raw_json("series_catalog")
+        if existing:
+            print(f"  series_catalog.json already exists ({len(existing):,} series), skipping")
+            return
+    except FileNotFoundError:
+        pass
+
     # CSV is in the connector root directory (sibling to src/)
     connector_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     csv_path = os.path.join(connector_root, "bls_series.csv")
 
     if not os.path.exists(csv_path):
-        raise FileNotFoundError(f"Series CSV not found at {csv_path}")
+        print(f"  No bls_series.csv found, skipping catalog generation")
+        print(f"  (series_data will fall back to popular_series API)")
+        return
 
     print(f"  Loading series from {csv_path}")
 
