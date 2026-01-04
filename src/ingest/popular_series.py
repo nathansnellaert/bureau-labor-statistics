@@ -1,7 +1,7 @@
 import os
 
 from subsets_utils import load_raw_json, save_raw_json
-from bls_client import rate_limited_get
+from utils import rate_limited_get
 
 API_KEY = os.environ['BLS_API_KEY']
 POPULAR_URL = "https://api.bls.gov/publicAPI/v2/timeseries/popular"
