@@ -51,13 +51,12 @@ def main():
             print("\n--- Series Catalog ---")
             ingest_series_catalog.run()
 
-        # If no catalog, fetch surveys + popular_series as fallback
-        if not catalog_exists():
-            print("\n--- Surveys (fetching survey list) ---")
-            ingest_surveys.run()
+        # Always fetch surveys + popular_series (used as fallback for surveys missing from catalog)
+        print("\n--- Surveys (fetching survey list) ---")
+        ingest_surveys.run()
 
-            print("\n--- Popular Series (fetching from BLS API) ---")
-            ingest_popular_series.run()
+        print("\n--- Popular Series (fetching from BLS API) ---")
+        ingest_popular_series.run()
 
         print("\n--- Series Data (fetching from BLS API) ---")
         ingest_series_data.run()

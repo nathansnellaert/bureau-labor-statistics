@@ -24,12 +24,108 @@ SERIES_PER_SURVEY = 500
 BATCH_SIZE = 50  # Max series per request
 MAX_YEARS_PER_REQUEST = 20
 
+# Surveys that need more series (annual point-in-time surveys with 1 data point per series)
+HIGH_VOLUME_SURVEYS = {"OE", "WM"}
+SERIES_PER_SURVEY_HIGH_VOLUME = 2000
 
-def select_series_from_catalog(catalog: list[dict], per_survey: int) -> list[str]:
+# Hardcoded series for important surveys missing from both catalog and popular_series
+FALLBACK_SERIES = {
+    # JOLTS - Job Openings and Labor Turnover Survey
+    "JT": [
+        # Total nonfarm - levels (seasonally adjusted)
+        "JTS000000000000000JOL",  # Job openings level
+        "JTS000000000000000HIL",  # Hires level
+        "JTS000000000000000QUL",  # Quits level
+        "JTS000000000000000LDL",  # Layoffs and discharges level
+        "JTS000000000000000TSL",  # Total separations level
+        # Total nonfarm - rates (seasonally adjusted)
+        "JTS000000000000000JOR",  # Job openings rate
+        "JTS000000000000000HIR",  # Hires rate
+        "JTS000000000000000QUR",  # Quits rate
+        "JTS000000000000000LDR",  # Layoffs and discharges rate
+        "JTS000000000000000TSR",  # Total separations rate
+        # Total private
+        "JTS100000000000000JOL",  # Private job openings level
+        "JTS100000000000000HIL",  # Private hires level
+        "JTS100000000000000QUL",  # Private quits level
+        # Government
+        "JTS900000000000000JOL",  # Government job openings level
+        # By industry - job openings
+        "JTS510000000000000JOL",  # Professional and business services
+        "JTS540000000000000JOL",  # Health care and social assistance
+        "JTS440000000000000JOL",  # Retail trade
+        "JTS720000000000000JOL",  # Accommodation and food services
+        "JTS320000000000000JOL",  # Manufacturing
+        "JTS230000000000000JOL",  # Construction
+    ],
+    # QCEW - Quarterly Census of Employment and Wages
+    # Format: ENU + area(5) + ownership(1) + industry(6) + size(1) + datatype(1)
+    "EN": [
+        # National totals - all industries
+        "ENU0000000010000001",  # US total employment
+        "ENU0000000010000005",  # US total wages
+        "ENU0000000010000006",  # US average weekly wage
+        "ENU0000000510000001",  # US private employment
+        "ENU0000000510000005",  # US private wages
+        # National by sector
+        "ENU0000000511000001",  # Natural resources employment
+        "ENU0000000521000001",  # Construction employment
+        "ENU0000000531000001",  # Manufacturing employment
+        "ENU0000000542000001",  # Trade employment
+        "ENU0000000544000001",  # Retail trade employment
+        "ENU0000000551000001",  # Information employment
+        "ENU0000000552000001",  # Finance employment
+        "ENU0000000554000001",  # Professional services employment
+        "ENU0000000562000001",  # Health care employment
+        "ENU0000000572000001",  # Accommodation/food employment
+        # Top states - total employment
+        "ENU0600000010000001",  # California employment
+        "ENU4800000010000001",  # Texas employment
+        "ENU1200000010000001",  # Florida employment
+        "ENU3600000010000001",  # New York employment
+        "ENU4200000010000001",  # Pennsylvania employment
+        "ENU1700000010000001",  # Illinois employment
+        "ENU3900000010000001",  # Ohio employment
+        "ENU1300000010000001",  # Georgia employment
+        "ENU3700000010000001",  # North Carolina employment
+        "ENU2600000010000001",  # Michigan employment
+        # Top states - wages
+        "ENU0600000010000005",  # California wages
+        "ENU4800000010000005",  # Texas wages
+        "ENU3600000010000005",  # New York wages
+    ],
+    # Occupational Requirements Survey
+    "OR": [
+        # Physical demands - all occupations
+        "ORU00000000000000PD01",  # Standing - percent
+        "ORU00000000000000PD02",  # Walking - percent
+        "ORU00000000000000PD03",  # Sitting - percent
+        "ORU00000000000000PD04",  # Lifting - percent
+        "ORU00000000000000PD05",  # Crouching - percent
+        # Cognitive requirements
+        "ORU00000000000000CR01",  # Reading - percent
+        "ORU00000000000000CR02",  # Writing - percent
+        "ORU00000000000000CR03",  # Math - percent
+        # Education
+        "ORU00000000000000ED01",  # High school - percent
+        "ORU00000000000000ED02",  # Bachelor's - percent
+        "ORU00000000000000ED03",  # Master's - percent
+        # Experience
+        "ORU00000000000000EX01",  # No experience - percent
+        "ORU00000000000000EX02",  # 1-5 years - percent
+        "ORU00000000000000EX03",  # 5+ years - percent
+    ],
+}
+
+
+def select_series_from_catalog(catalog: list[dict], popular_data: dict | None, per_survey: int) -> list[str]:
     """Select top N series per survey prefix from the catalog.
+
+    Falls back to popular_series for surveys missing from catalog.
 
     Args:
         catalog: List of series dicts with rank, series_id, survey_prefix
+        popular_data: Popular series data (fallback for missing surveys)
         per_survey: How many series to take per survey
 
     Returns:
@@ -43,9 +139,33 @@ def select_series_from_catalog(catalog: list[dict], per_survey: int) -> list[str
 
     selected = []
     for prefix, series_list in by_survey.items():
+        # Use higher limit for point-in-time surveys (OE, WM only have 1 data point per series)
+        limit = SERIES_PER_SURVEY_HIGH_VOLUME if prefix in HIGH_VOLUME_SURVEYS else per_survey
         # Already sorted by rank from catalog
-        top_n = series_list[:per_survey]
+        top_n = series_list[:limit]
         selected.extend(s['series_id'] for s in top_n)
+
+    # Fill in surveys missing from catalog using popular_series
+    if popular_data:
+        catalog_prefixes = set(by_survey.keys())
+        for survey_prefix, series_list in popular_data.get("by_survey", {}).items():
+            if survey_prefix not in catalog_prefixes:
+                for series in series_list:
+                    if series and series.get("seriesID"):
+                        selected.append(series["seriesID"])
+                        catalog_prefixes.add(survey_prefix)  # Mark as covered
+
+    # Fill in important surveys missing from both sources using hardcoded fallback
+    covered_prefixes = set(by_survey.keys())
+    if popular_data:
+        covered_prefixes.update(
+            p for p, s in popular_data.get("by_survey", {}).items()
+            if any(x and x.get("seriesID") for x in s)
+        )
+    for survey_prefix, series_ids in FALLBACK_SERIES.items():
+        if survey_prefix not in covered_prefixes:
+            selected.extend(series_ids)
+            print(f"  Added {len(series_ids)} hardcoded {survey_prefix} series")
 
     return selected
 
@@ -73,14 +193,23 @@ def fetch_series_batch(series_ids: list[str], start_year: int, end_year: int) ->
 
 def run():
     """Fetch time series data for selected series and save raw JSON."""
+    # Load popular_series for fallback (surveys missing from catalog)
+    try:
+        popular_data = load_raw_json("popular_series")
+    except FileNotFoundError:
+        popular_data = None
+
     # Try to load from series_catalog first, fall back to popular_series
     try:
         catalog = load_raw_json("series_catalog")
-        series_ids = select_series_from_catalog(catalog, SERIES_PER_SURVEY)
+        series_ids = select_series_from_catalog(catalog, popular_data, SERIES_PER_SURVEY)
         print(f"  Selected {len(series_ids)} series from catalog ({SERIES_PER_SURVEY} per survey)")
+        if popular_data:
+            print(f"  (with fallback to popular_series for missing surveys)")
     except FileNotFoundError:
         print("  No series_catalog found, falling back to popular_series")
-        popular_data = load_raw_json("popular_series")
+        if not popular_data:
+            raise FileNotFoundError("No series_catalog or popular_series found")
         series_ids = set()
         for series in popular_data.get("overall", []):
             if series and series.get("seriesID"):
