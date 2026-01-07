@@ -39,7 +39,6 @@ SURVEY_TOPICS = {
     "CX": ("consumer_expenditure", "How households allocate spending across categories"),
     "FM": ("mass_layoffs", "Large-scale layoff events and workers affected (discontinued 2013)"),
     "OR": ("occupational_requirements", "Physical demands and educational requirements by occupation"),
-    "EN": ("qcew", "Quarterly employment and wages by county, industry, and ownership from employer tax records"),
 }
 
 # All potential dimension columns
@@ -88,14 +87,41 @@ def extract_unit(series_title: str) -> str:
     return ""
 
 
+# Human-readable names for JOLTS series (no catalog data from API)
+JOLTS_SERIES_NAMES = {
+    "JTS000000000000000JOL": "Total nonfarm job openings, level, seasonally adjusted",
+    "JTS000000000000000HIL": "Total nonfarm hires, level, seasonally adjusted",
+    "JTS000000000000000QUL": "Total nonfarm quits, level, seasonally adjusted",
+    "JTS000000000000000LDL": "Total nonfarm layoffs and discharges, level, seasonally adjusted",
+    "JTS000000000000000TSL": "Total nonfarm total separations, level, seasonally adjusted",
+    "JTS000000000000000JOR": "Total nonfarm job openings rate, seasonally adjusted",
+    "JTS000000000000000HIR": "Total nonfarm hires rate, seasonally adjusted",
+    "JTS000000000000000QUR": "Total nonfarm quits rate, seasonally adjusted",
+    "JTS000000000000000LDR": "Total nonfarm layoffs and discharges rate, seasonally adjusted",
+    "JTS000000000000000TSR": "Total nonfarm total separations rate, seasonally adjusted",
+    "JTS100000000000000JOL": "Total private job openings, level, seasonally adjusted",
+    "JTS100000000000000HIL": "Total private hires, level, seasonally adjusted",
+    "JTS100000000000000QUL": "Total private quits, level, seasonally adjusted",
+    "JTS900000000000000JOL": "Government job openings, level, seasonally adjusted",
+    "JTS510000000000000JOL": "Professional and business services job openings, level",
+    "JTS540000000000000JOL": "Health care and social assistance job openings, level",
+    "JTS440000000000000JOL": "Retail trade job openings, level",
+    "JTS720000000000000JOL": "Accommodation and food services job openings, level",
+    "JTS320000000000000JOL": "Manufacturing job openings, level",
+    "JTS230000000000000JOL": "Construction job openings, level",
+}
+
+
 def parse_series_data(series_data: dict) -> list[dict]:
     """Parse a single series with full catalog metadata."""
     records = []
     series_id = series_data.get("seriesID", "")
     catalog = series_data.get("catalog") or {}
 
-    # Use series_title as indicator - it's self-documenting
+    # Use series_title as indicator, fall back to JOLTS names or series_id
     series_title = catalog.get("series_title", "")
+    if not series_title:
+        series_title = JOLTS_SERIES_NAMES.get(series_id, series_id)
     unit = extract_unit(series_title)
 
     series_info = {

@@ -58,63 +58,9 @@ FALLBACK_SERIES = {
         "JTS320000000000000JOL",  # Manufacturing
         "JTS230000000000000JOL",  # Construction
     ],
-    # QCEW - Quarterly Census of Employment and Wages
-    # Format: ENU + area(5) + ownership(1) + industry(6) + size(1) + datatype(1)
-    "EN": [
-        # National totals - all industries
-        "ENU0000000010000001",  # US total employment
-        "ENU0000000010000005",  # US total wages
-        "ENU0000000010000006",  # US average weekly wage
-        "ENU0000000510000001",  # US private employment
-        "ENU0000000510000005",  # US private wages
-        # National by sector
-        "ENU0000000511000001",  # Natural resources employment
-        "ENU0000000521000001",  # Construction employment
-        "ENU0000000531000001",  # Manufacturing employment
-        "ENU0000000542000001",  # Trade employment
-        "ENU0000000544000001",  # Retail trade employment
-        "ENU0000000551000001",  # Information employment
-        "ENU0000000552000001",  # Finance employment
-        "ENU0000000554000001",  # Professional services employment
-        "ENU0000000562000001",  # Health care employment
-        "ENU0000000572000001",  # Accommodation/food employment
-        # Top states - total employment
-        "ENU0600000010000001",  # California employment
-        "ENU4800000010000001",  # Texas employment
-        "ENU1200000010000001",  # Florida employment
-        "ENU3600000010000001",  # New York employment
-        "ENU4200000010000001",  # Pennsylvania employment
-        "ENU1700000010000001",  # Illinois employment
-        "ENU3900000010000001",  # Ohio employment
-        "ENU1300000010000001",  # Georgia employment
-        "ENU3700000010000001",  # North Carolina employment
-        "ENU2600000010000001",  # Michigan employment
-        # Top states - wages
-        "ENU0600000010000005",  # California wages
-        "ENU4800000010000005",  # Texas wages
-        "ENU3600000010000005",  # New York wages
-    ],
-    # Occupational Requirements Survey
-    "OR": [
-        # Physical demands - all occupations
-        "ORU00000000000000PD01",  # Standing - percent
-        "ORU00000000000000PD02",  # Walking - percent
-        "ORU00000000000000PD03",  # Sitting - percent
-        "ORU00000000000000PD04",  # Lifting - percent
-        "ORU00000000000000PD05",  # Crouching - percent
-        # Cognitive requirements
-        "ORU00000000000000CR01",  # Reading - percent
-        "ORU00000000000000CR02",  # Writing - percent
-        "ORU00000000000000CR03",  # Math - percent
-        # Education
-        "ORU00000000000000ED01",  # High school - percent
-        "ORU00000000000000ED02",  # Bachelor's - percent
-        "ORU00000000000000ED03",  # Master's - percent
-        # Experience
-        "ORU00000000000000EX01",  # No experience - percent
-        "ORU00000000000000EX02",  # 1-5 years - percent
-        "ORU00000000000000EX03",  # 5+ years - percent
-    ],
+    # NOTE: QCEW (EN) is NOT available through the BLS timeseries API
+    # It requires a separate bulk data download from https://www.bls.gov/cew/downloadable-data-files.htm
+    # NOTE: OR (Occupational Requirements) series are covered by the catalog (20 series)
 }
 
 
