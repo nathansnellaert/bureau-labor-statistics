@@ -12,7 +12,8 @@ import pyarrow.parquet as pq
 from deltalake import write_deltalake, DeltaTable
 from . import debug
 from .environment import get_data_dir
-from .r2 import is_cloud_mode, upload_bytes, upload_file, download_bytes, get_storage_options, get_delta_table_uri, get_bucket_name, get_connector_name
+from .r2 import is_cloud_mode, upload_bytes, upload_file, download_bytes, get_storage_options, get_delta_table_uri, get_bucket_name, get_connector_name, list_keys
+import fnmatch
 
 
 # --- Delta table operations ---
@@ -256,3 +257,67 @@ def load_raw_parquet(asset_id: str) -> pa.Table:
         if not path.exists():
             raise FileNotFoundError(f"Raw parquet asset '{asset_id}' not found at {path}")
         return pq.read_table(path)
+
+
+def list_raw_files(pattern: str = "*") -> list[str]:
+    """List raw asset IDs matching a glob pattern.
+
+    Pattern matches against the full asset path (e.g., "prices/*.json", "*.parquet").
+    Returns asset IDs without extensions (e.g., ["prices/bitcoin", "prices/ethereum"]).
+
+    Examples:
+        list_raw_files("prices/*.json")  -> ["prices/bitcoin", "prices/ethereum", ...]
+        list_raw_files("*.parquet")      -> ["page_views_2024-01", "page_views_2024-02", ...]
+        list_raw_files("data_DF_*.csv")  -> ["data_DF_YI", "data_DF_EMP", ...]
+    """
+    if is_cloud_mode():
+        prefix = f"{get_connector_name()}/data/raw/"
+        all_keys = list_keys(prefix)
+        # Strip prefix and match against pattern
+        assets = []
+        for key in all_keys:
+            relative = key[len(prefix):]  # e.g., "prices/bitcoin.json"
+            if fnmatch.fnmatch(relative, pattern):
+                # Remove extension to get asset_id
+                asset_id = relative.rsplit('.', 1)[0]
+                # Handle .json.gz double extension
+                if asset_id.endswith('.json'):
+                    asset_id = asset_id[:-5]
+                assets.append(asset_id)
+        return sorted(assets)
+    else:
+        raw_dir = Path(get_data_dir()) / "raw"
+        if not raw_dir.exists():
+            return []
+        # Glob locally
+        matches = list(raw_dir.glob(pattern))
+        assets = []
+        for path in matches:
+            relative = path.relative_to(raw_dir)
+            asset_id = str(relative).rsplit('.', 1)[0]
+            if asset_id.endswith('.json'):
+                asset_id = asset_id[:-5]
+            assets.append(asset_id)
+        return sorted(assets)
+
+
+def raw_exists(asset_id: str, extension: str = None) -> bool:
+    """Check if a raw asset exists.
+
+    If extension is None, checks for common extensions (json, json.gz, parquet, csv).
+    """
+    extensions = [extension] if extension else ["json", "json.gz", "parquet", "csv"]
+
+    if is_cloud_mode():
+        for ext in extensions:
+            key = _raw_key(asset_id, ext)
+            data = download_bytes(key)
+            if data is not None:
+                return True
+        return False
+    else:
+        for ext in extensions:
+            path = Path(get_data_dir()) / "raw" / f"{asset_id}.{ext}"
+            if path.exists():
+                return True
+        return False
