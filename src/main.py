@@ -7,10 +7,15 @@ Data flow:
 
 The series_catalog step is optional - if not available, series_data falls back to the
 popular_series API endpoint (fewer series but no crawling required).
+
+Note: BLS API has a daily request limit (~500 requests/day for registered users).
+If the limit is hit, the connector saves progress and exits with code 2 to signal
+that another run is needed tomorrow to continue fetching data.
 """
 
 import argparse
 import os
+import sys
 
 os.environ['RUN_ID'] = os.getenv('RUN_ID', 'local-run')
 
@@ -42,6 +47,7 @@ def main():
 
     should_ingest = not args.transform_only
     should_transform = not args.ingest_only
+    needs_continuation = False
 
     if should_ingest:
         print("\n=== Phase 1: Ingest ===")
@@ -59,13 +65,19 @@ def main():
         ingest_popular_series.run()
 
         print("\n--- Series Data (fetching from BLS API) ---")
-        ingest_series_data.run()
+        needs_continuation = ingest_series_data.run() or False
 
     if should_transform:
         print("\n=== Phase 2: Transform ===")
 
         print("\n--- Series Data (splitting into topic datasets) ---")
         transform_series_data.run()
+
+    # Signal continuation if API quota was hit and more data remains
+    if needs_continuation:
+        print("\n=== Continuation needed (daily API quota reached) ===")
+        print("Run again tomorrow to fetch remaining series")
+        sys.exit(2)
 
 
 if __name__ == "__main__":

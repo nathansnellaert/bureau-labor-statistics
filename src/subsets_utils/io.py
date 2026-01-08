@@ -18,14 +18,25 @@ import fnmatch
 
 # --- Delta table operations ---
 
-def upload_data(data: pa.Table, dataset_name: str, metadata: dict = None, mode: str = "append", merge_key: str = None) -> str:
-    """Upload a PyArrow table to a Delta table."""
+def upload_data(data: pa.Table, dataset_name: str, metadata: dict = None, mode: str = "append", merge_key: str = None, partition_by: list[str] = None) -> str:
+    """Upload a PyArrow table to a Delta table.
+
+    Args:
+        data: PyArrow table to upload
+        dataset_name: Name of the dataset/table
+        metadata: Optional metadata dict
+        mode: "append", "overwrite", or "merge"
+        merge_key: Required when mode="merge", column to merge on
+        partition_by: Optional list of columns to partition by (e.g., ["taxonomy", "year"])
+    """
     if mode not in ("append", "overwrite", "merge"):
         raise ValueError(f"Invalid mode '{mode}'. Must be 'append', 'overwrite', or 'merge'.")
     if mode == "merge" and not merge_key:
         raise ValueError("merge_key is required when mode='merge'")
+    if mode == "merge" and partition_by:
+        raise ValueError("partition_by is not supported with mode='merge'")
     if mode == "overwrite":
-        print(f"⚠️  Warning: Overwriting {dataset_name} - all existing data will be replaced")
+        print(f"Warning: Overwriting {dataset_name} - all existing data will be replaced")
     if len(data) == 0:
         print(f"No data to upload for {dataset_name}")
         return ""
@@ -33,7 +44,8 @@ def upload_data(data: pa.Table, dataset_name: str, metadata: dict = None, mode: 
     size_mb = round(data.nbytes / 1024 / 1024, 2)
     columns = ', '.join([f.name for f in data.schema])
     mode_label = {"append": "Appending to", "overwrite": "Overwriting", "merge": "Merging into"}[mode]
-    print(f"{mode_label} {dataset_name}: {len(data)} rows, {len(data.schema)} cols ({columns}), {size_mb} MB")
+    partition_info = f", partitioned by {partition_by}" if partition_by else ""
+    print(f"{mode_label} {dataset_name}: {len(data)} rows, {len(data.schema)} cols ({columns}), {size_mb} MB{partition_info}")
 
     table_name = metadata.get("title") if metadata else None
     table_description = json.dumps(metadata) if metadata else None
@@ -61,6 +73,7 @@ def upload_data(data: pa.Table, dataset_name: str, metadata: dict = None, mode: 
     else:
         write_deltalake(table_uri, data, mode=mode, storage_options=storage_options,
                         name=table_name, description=table_description,
+                        partition_by=partition_by,
                         schema_mode="merge" if mode == "append" else "overwrite")
 
     # Log output

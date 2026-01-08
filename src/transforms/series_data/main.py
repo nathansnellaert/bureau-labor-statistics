@@ -266,6 +266,12 @@ def run():
     raw_data = load_raw_json("series_data")
     series_list = raw_data.get("series", [])
 
+    # Handle empty data gracefully - may happen if API quota was exhausted
+    if not series_list:
+        print("  No series data available (API quota may have been exhausted)")
+        print("  Skipping transform - will retry on next run")
+        return
+
     # Parse all series and group by survey
     by_survey = defaultdict(list)
 
@@ -276,7 +282,9 @@ def run():
             by_survey[survey_abbr].extend(records)
 
     if not by_survey:
-        raise ValueError("No series data found")
+        print("  No parseable series data found")
+        print("  Skipping transform - will retry on next run")
+        return
 
     print(f"  Parsed {sum(len(r) for r in by_survey.values()):,} records across {len(by_survey)} surveys")
 

@@ -116,6 +116,11 @@ def select_series_from_catalog(catalog: list[dict], popular_data: dict | None, p
     return selected
 
 
+class DailyQuotaExceeded(Exception):
+    """Raised when BLS API daily request limit is reached."""
+    pass
+
+
 def fetch_series_batch(series_ids: list[str], start_year: int, end_year: int) -> list[dict]:
     """Fetch data for a batch of series from BLS API."""
     headers = {"Content-type": "application/json"}
@@ -131,8 +136,15 @@ def fetch_series_batch(series_ids: list[str], start_year: int, end_year: int) ->
     data = response.json()
 
     status = data.get("status")
+    message = data.get("message", ["Unknown error"])
+    message_str = message[0] if isinstance(message, list) else str(message)
+
+    # Check for daily quota limit - this is a permanent failure for today
+    if "daily threshold" in message_str.lower():
+        raise DailyQuotaExceeded(message_str)
+
     if status in ["REQUEST_FAILED", "REQUEST_NOT_PROCESSED"]:
-        raise ValueError(f"BLS API error: {data.get('message', 'Unknown error')}")
+        raise ValueError(f"BLS API error: {message_str}")
 
     return data.get("Results", {}).get("series", [])
 
@@ -188,6 +200,7 @@ def run():
 
     all_series_data = state.get("series_data", [])
     total_batches = (len(remaining_ids) + BATCH_SIZE - 1) // BATCH_SIZE
+    quota_exceeded = False
 
     for i in range(0, len(remaining_ids), BATCH_SIZE):
         batch = remaining_ids[i:i + BATCH_SIZE]
@@ -207,6 +220,17 @@ def run():
                 "series_data": all_series_data
             })
 
+        except DailyQuotaExceeded as e:
+            # Daily limit hit - stop making requests, save progress
+            print(f"  Daily API quota exceeded: {e}")
+            print(f"  Saving progress ({len(all_series_data)} series fetched so far)")
+            quota_exceeded = True
+            save_state("series_data", {
+                "completed_series": list(completed_ids),
+                "series_data": all_series_data
+            })
+            break
+
         except Exception as e:
             print(f"    Error in batch: {e}")
             # Save progress and continue
@@ -217,14 +241,21 @@ def run():
 
     print(f"  Total: {len(all_series_data)} series with data")
 
+    # Save whatever we have
     save_raw_json({
         "series": all_series_data,
         "start_year": start_year,
         "end_year": end_year
     }, "series_data")
 
-    # Clear incremental state
+    # If quota exceeded and we have pending work, signal continuation
+    if quota_exceeded and len(completed_ids) < len(series_ids):
+        print(f"  {len(series_ids) - len(completed_ids)} series remaining - will need another run tomorrow")
+        return True  # Signal: more work needed
+
+    # Clear incremental state only if fully complete
     save_state("series_data", {"completed": True})
+    return False  # All done
 
 
 if __name__ == "__main__":
