@@ -1,14 +1,23 @@
+"""Fetch popular series for each survey from BLS API.
+
+This node fetches the list of popular series (top 25 overall + top per survey)
+from the BLS API. Used as fallback for surveys missing from the series catalog.
+"""
+
 import os
 
 from subsets_utils import load_raw_json, save_raw_json
 from utils import rate_limited_get
 
-API_KEY = os.environ['BLS_API_KEY']
 POPULAR_URL = "https://api.bls.gov/publicAPI/v2/timeseries/popular"
 
 
+def _get_api_key():
+    return os.environ['BLS__get_api_key()']
+
+
 def run():
-    """Fetch popular series for each survey and save raw JSON"""
+    """Fetch popular series for each survey and save raw JSON."""
     # Skip if popular_series already exists (rarely changes)
     try:
         existing = load_raw_json("popular_series")
@@ -32,7 +41,7 @@ def run():
 
     # First get overall popular series (top 25 across all surveys)
     print("  Fetching overall popular series...")
-    params = {"registrationkey": API_KEY}
+    params = {"registrationkey": _get_api_key()}
     response = rate_limited_get(POPULAR_URL, params=params)
     data = response.json()
 
@@ -52,7 +61,7 @@ def run():
     for survey_id in survey_ids:
         params = {
             "survey": survey_id,
-            "registrationkey": API_KEY
+            "registrationkey": _get_api_key()
         }
 
         response = rate_limited_get(POPULAR_URL, params=params)
@@ -74,3 +83,14 @@ def run():
     print(f"  Total: {len(all_data['overall'])} overall + {total_by_survey} by survey")
 
     save_raw_json(all_data, "popular_series")
+
+
+from nodes.surveys import run as surveys_run
+
+NODES = {
+    run: [surveys_run],
+}
+
+
+if __name__ == "__main__":
+    run()

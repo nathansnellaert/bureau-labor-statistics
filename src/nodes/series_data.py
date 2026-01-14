@@ -1,6 +1,6 @@
 """Fetch time series data from BLS API for selected series.
 
-Loads series IDs from the catalog (crawled from Data Finder) and fetches
+Loads series IDs from the catalog (or popular_series as fallback) and fetches
 actual data + metadata via the BLS API with catalog=true.
 """
 
@@ -150,7 +150,10 @@ def fetch_series_batch(series_ids: list[str], start_year: int, end_year: int) ->
 
 
 def run():
-    """Fetch time series data for selected series and save raw JSON."""
+    """Fetch time series data for selected series and save raw JSON.
+
+    Returns True if quota was hit and more work remains (needs continuation).
+    """
     # Load popular_series for fallback (surveys missing from catalog)
     try:
         popular_data = load_raw_json("popular_series")
@@ -256,6 +259,14 @@ def run():
     # Clear incremental state only if fully complete
     save_state("series_data", {"completed": True})
     return False  # All done
+
+
+from nodes.series_catalog import run as series_catalog_run
+from nodes.popular_series import run as popular_series_run
+
+NODES = {
+    run: [series_catalog_run, popular_series_run],
+}
 
 
 if __name__ == "__main__":

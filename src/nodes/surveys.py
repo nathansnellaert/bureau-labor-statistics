@@ -1,13 +1,22 @@
+"""Fetch all available BLS surveys.
+
+This node fetches the list of surveys from the BLS API. The survey list
+rarely changes, so it skips if already cached.
+"""
+
 import os
 
 from subsets_utils import get, save_raw_json, load_raw_json
 
-API_KEY = os.environ['BLS_API_KEY']
 SURVEYS_URL = "https://api.bls.gov/publicAPI/v2/surveys"
 
 
+def _get_api_key():
+    return os.environ['BLS__get_api_key()']
+
+
 def run():
-    """Fetch all available BLS surveys and save raw JSON"""
+    """Fetch all available BLS surveys and save raw JSON."""
     # Skip if surveys already exist (rarely changes)
     try:
         existing = load_raw_json("surveys")
@@ -19,7 +28,7 @@ def run():
 
     print("  Fetching all BLS surveys...")
 
-    params = {"registrationkey": API_KEY}
+    params = {"registrationkey": _get_api_key()}
     response = get(SURVEYS_URL, params=params)
     data = response.json()
 
@@ -44,3 +53,12 @@ def run():
     print(f"  Found {len(surveys)} surveys")
 
     save_raw_json(surveys, "surveys")
+
+
+NODES = {
+    run: [],
+}
+
+
+if __name__ == "__main__":
+    run()

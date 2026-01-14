@@ -46,5 +46,10 @@ def run():
     save_raw_json(all_series, "series_catalog")
 
 
+NODES = {
+    run: [],
+}
+
+
 if __name__ == "__main__":
     run()
