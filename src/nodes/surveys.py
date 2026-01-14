@@ -12,7 +12,7 @@ SURVEYS_URL = "https://api.bls.gov/publicAPI/v2/surveys"
 
 
 def _get_api_key():
-    return os.environ['BLS__get_api_key()']
+    return os.environ['BLS_API_KEY']
 
 
 def run():
