@@ -2,6 +2,7 @@ import importlib.util
 import json
 import os
 import sys
+import time
 import traceback
 import multiprocessing
 from datetime import datetime
@@ -27,6 +28,7 @@ class DAG:
         self._fn_to_id = {}  # Map function to its ID
         self._id_to_fn = {}  # Reverse lookup
         self._dependents = {}  # Reverse graph: node -> list of nodes that depend on it
+        self._needs_continuation = False  # Set True if any node returns True
 
         # Initialize state and reverse lookup for each node
         for fn in nodes:
@@ -127,8 +129,12 @@ class DAG:
         set_current_task(task_state["id"])
 
         try:
-            fn()
+            result = fn()
             task_state["status"] = "done"
+            # If node returns True, it signals more work remains (continuation needed)
+            if result is True:
+                task_state["needs_continuation"] = True
+                self._needs_continuation = True
         except Exception as e:
             task_state["status"] = "failed"
             task_state["error"] = str(e)
@@ -150,8 +156,11 @@ class DAG:
             set_current_task(task_id)
 
             try:
-                fn()
-                queue.put({"status": "done"})
+                result = fn()
+                msg = {"status": "done"}
+                if result is True:
+                    msg["needs_continuation"] = True
+                queue.put(msg)
             except Exception as e:
                 queue.put({
                     "status": "failed",
@@ -166,6 +175,8 @@ class DAG:
 
         result = queue.get()
         task_state.update(result)
+        if result.get("needs_continuation"):
+            self._needs_continuation = True
         task_state["finished_at"] = datetime.now().isoformat()
         started = datetime.fromisoformat(task_state["started_at"])
         finished = datetime.fromisoformat(task_state["finished_at"])
@@ -183,9 +194,21 @@ class DAG:
         Env vars:
             DAG_TARGET: Comma-separated node names to run (overrides targets arg)
             DAG_ON_FAILURE: "crash" (default) or "continue"
+            DAG_MAX_RUN_SECONDS: Max wall-clock seconds before stopping and requesting
+                continuation. Unset or 0 = no limit.
+
+        Exit behavior:
+            - On failure with crash mode: raises immediately
+            - On failure with continue mode: raises after all nodes complete
+            - On success with continuation needed: sys.exit(2) for workflow retrigger
+            - On success: returns normally (exit 0)
         """
         # Reset tracking state for fresh run
         clear_tracking()
+
+        on_failure = os.environ.get("DAG_ON_FAILURE", "crash")
+        max_run_seconds = float(os.environ.get("DAG_MAX_RUN_SECONDS", str(5.5 * 60 * 60)))
+        run_start_time = time.time()
 
         # Env var overrides targets arg
         env_targets = os.environ.get("DAG_TARGET")
@@ -207,9 +230,19 @@ class DAG:
                 print(f"[DAG] Available: {[self._fn_to_id[fn] for fn in self.nodes]}")
                 return self
 
+        first_failure = None
+
         for fn in order:
             task_id = self._fn_to_id[fn]
             deps = self.nodes[fn]
+
+            # Check time budget before starting a new node
+            if max_run_seconds > 0:
+                elapsed = time.time() - run_start_time
+                if elapsed >= max_run_seconds:
+                    print(f"[DAG] Time budget exhausted ({elapsed/3600:.1f}h) - stopping before {task_id}")
+                    self._needs_continuation = True
+                    break
 
             # Check deps succeeded
             for dep in deps:
@@ -225,11 +258,25 @@ class DAG:
             self._cleanup_cache(fn)  # Free disk space from completed upstream nodes
 
             if result["status"] == "done":
-                print(f"[DAG] {task_id} done ({result['duration_s']:.1f}s)")
+                continuation_msg = " (needs continuation)" if result.get("needs_continuation") else ""
+                print(f"[DAG] {task_id} done ({result['duration_s']:.1f}s){continuation_msg}")
             else:
                 print(f"[DAG] {task_id} failed: {result.get('error', 'unknown')}")
-                if os.environ.get("DAG_ON_FAILURE", "crash") == "crash":
-                    break
+                if first_failure is None:
+                    first_failure = result
+                if on_failure == "crash":
+                    # Raise immediately
+                    raise RuntimeError(f"[DAG] {task_id} failed: {result.get('error', 'unknown')}")
+
+        # After all nodes complete, check for deferred failures (continue mode)
+        if first_failure is not None:
+            task_id = first_failure["id"]
+            raise RuntimeError(f"[DAG] {task_id} failed: {first_failure.get('error', 'unknown')}")
+
+        # All nodes succeeded - check if continuation needed
+        if self._needs_continuation:
+            print("[DAG] Continuation needed - exiting with code 2 for retrigger")
+            sys.exit(2)
 
         return self
 

@@ -4,7 +4,6 @@ import os
 import io
 import json
 import gzip
-import uuid
 import hashlib
 import shutil
 from datetime import datetime
@@ -12,7 +11,7 @@ from pathlib import Path
 from typing import Optional
 import pyarrow as pa
 import pyarrow.parquet as pq
-from deltalake import write_deltalake, DeltaTable
+from deltalake import DeltaTable
 from . import debug
 from .config import get_data_dir, is_cloud, get_storage_options, subsets_uri, get_bucket_name, get_connector_name, raw_key, cache_path, raw_path, state_key, state_path
 from .r2 import upload_bytes, upload_file, download_bytes
@@ -81,139 +80,12 @@ def _cache_lookup(key: str) -> Optional[Path]:
     return None
 
 
-def _compute_table_hash(table: pa.Table) -> str:
-    """Compute a stable hash of a PyArrow table for change detection."""
-    # Write to parquet bytes for consistent hashing
-    buffer = io.BytesIO()
-    pq.write_table(table, buffer, compression='snappy')
-    return hashlib.sha256(buffer.getvalue()).hexdigest()[:16]
-
-
 def data_hash(table: pa.Table) -> str:
     """Fast hash based on row count + schema. Use with state to detect changes."""
     h = hashlib.md5()
     h.update(f"{len(table)}".encode())
     h.update(str(table.schema).encode())
     return h.hexdigest()[:16]
-
-
-def _get_hash_state_key(dataset_name: str) -> str:
-    return f"_hash_{dataset_name}"
-
-
-def sync_data(data: pa.Table, dataset_name: str, mode: str = "overwrite") -> str | None:
-    """Sync a PyArrow table to a Delta table, only if data has changed.
-
-    Returns the table URI if data was synced, None if no changes detected.
-    """
-    from .tracking import record_write
-
-    if len(data) == 0:
-        print(f"No data to sync for {dataset_name}")
-        return None
-
-    # Compute hash of new data
-    new_hash = _compute_table_hash(data)
-
-    # Load existing hash from state
-    state = load_state(_get_hash_state_key(dataset_name))
-    old_hash = state.get("hash")
-
-    if old_hash == new_hash:
-        print(f"No changes detected for {dataset_name} (hash: {new_hash})")
-        return None
-
-    # Data has changed, upload it
-    size_mb = round(data.nbytes / 1024 / 1024, 2)
-    columns = ', '.join([f.name for f in data.schema])
-    print(f"Syncing {dataset_name}: {len(data)} rows, {len(data.schema)} cols ({columns}), {size_mb} MB")
-    if old_hash:
-        print(f"  Hash changed: {old_hash} -> {new_hash}")
-    else:
-        print(f"  New dataset (hash: {new_hash})")
-
-    if _is_cloud_mode():
-        table_uri = get_delta_table_uri(dataset_name)
-        storage_options = get_storage_options()
-    else:
-        table_uri = str(Path(get_data_dir()) / "subsets" / dataset_name)
-        storage_options = None
-
-    write_deltalake(table_uri, data, mode=mode, storage_options=storage_options,
-                    schema_mode="overwrite")
-
-    # Save new hash to state
-    save_state(_get_hash_state_key(dataset_name), {"hash": new_hash})
-
-    # Log output
-    null_counts = {col: data[col].null_count for col in data.column_names if data[col].null_count > 0}
-    debug.log_data_output(dataset_name=dataset_name, row_count=len(data), size_bytes=data.nbytes,
-                          columns=data.column_names, column_count=len(data.schema), null_counts=null_counts, mode=mode)
-
-    # Track materialization for DAG
-    record_write(f"subsets/{dataset_name}")
-
-    return table_uri
-
-
-# --- Delta table operations ---
-
-def upload_data(data: pa.Table, dataset_name: str, metadata: dict = None, mode: str = "append", merge_key: str = None) -> str:
-    """Upload a PyArrow table to a Delta table."""
-    from .tracking import record_write
-
-    if mode not in ("append", "overwrite", "merge"):
-        raise ValueError(f"Invalid mode '{mode}'. Must be 'append', 'overwrite', or 'merge'.")
-    if mode == "merge" and not merge_key:
-        raise ValueError("merge_key is required when mode='merge'")
-    if mode == "overwrite":
-        print(f"⚠️  Warning: Overwriting {dataset_name} - all existing data will be replaced")
-    if len(data) == 0:
-        print(f"No data to upload for {dataset_name}")
-        return ""
-
-    size_mb = round(data.nbytes / 1024 / 1024, 2)
-    columns = ', '.join([f.name for f in data.schema])
-    mode_label = {"append": "Appending to", "overwrite": "Overwriting", "merge": "Merging into"}[mode]
-    print(f"{mode_label} {dataset_name}: {len(data)} rows, {len(data.schema)} cols ({columns}), {size_mb} MB")
-
-    table_name = metadata.get("title") if metadata else None
-    table_description = json.dumps(metadata) if metadata else None
-
-    if _is_cloud_mode():
-        table_uri = get_delta_table_uri(dataset_name)
-        storage_options = get_storage_options()
-    else:
-        table_uri = str(Path(get_data_dir()) / "subsets" / dataset_name)
-        storage_options = None
-
-    if mode == "merge":
-        try:
-            dt = DeltaTable(table_uri, storage_options=storage_options) if storage_options else DeltaTable(table_uri)
-            updates = {col: f"source.{col}" for col in data.column_names}
-            dt.merge(source=data, predicate=f"target.{merge_key} = source.{merge_key}",
-                     source_alias="source", target_alias="target") \
-              .when_matched_update(updates=updates) \
-              .when_not_matched_insert(updates=updates) \
-              .execute()
-            print(f"Merged: table now has {len(dt.to_pyarrow_table())} total rows")
-        except Exception:
-            write_deltalake(table_uri, data, storage_options=storage_options, name=table_name, description=table_description)
-            print(f"Created new table {dataset_name}")
-    else:
-        write_deltalake(table_uri, data, mode=mode, storage_options=storage_options,
-                        name=table_name, description=table_description,
-                        schema_mode="merge" if mode == "append" else "overwrite")
-
-    # Log output
-    null_counts = {col: data[col].null_count for col in data.column_names if data[col].null_count > 0}
-    debug.log_data_output(dataset_name=dataset_name, row_count=len(data), size_bytes=data.nbytes,
-                          columns=data.column_names, column_count=len(data.schema), null_counts=null_counts, mode=mode)
-
-    # Track materialization for DAG
-    record_write(f"subsets/{dataset_name}")
-
-    return table_uri
 
 
 def load_asset(asset_name: str) -> pa.Table:
@@ -235,17 +107,6 @@ def load_asset(asset_name: str) -> pa.Table:
         table = DeltaTable(str(table_path)).to_pyarrow_table()
         record_read(f"subsets/{asset_name}")
         return table
-
-
-def has_changed(new_data: pa.Table, asset_name: str) -> bool:
-    """Check if new data differs from existing asset. Returns True if changed or doesn't exist."""
-    try:
-        existing = load_asset(asset_name)
-        if len(new_data) != len(existing) or new_data.schema != existing.schema:
-            return True
-        return new_data.to_pandas().to_csv(index=False) != existing.to_pandas().to_csv(index=False)
-    except Exception:
-        return True
 
 
 # --- State operations ---
@@ -492,14 +353,13 @@ def list_raw_files(pattern: str) -> list[str]:
         return sorted([str(p.relative_to(raw_dir)) for p in matches])
 
 
-def save_raw_parquet(data: pa.Table, asset_id: str, metadata: dict = None) -> str:
+def save_raw_parquet(data: pa.Table, asset_id: str) -> str:
     """Save raw PyArrow table as Parquet."""
     from .tracking import record_write
 
-    if metadata:
-        existing = data.schema.metadata or {}
-        existing[b'asset_metadata'] = json.dumps(metadata).encode('utf-8')
-        data = data.replace_schema_metadata(existing)
+    # Handle RecordBatchReader by reading into a Table
+    if hasattr(data, 'read_all'):
+        data = data.read_all()
 
     if _is_cloud_mode():
         key = _raw_key(asset_id, "parquet")
@@ -567,6 +427,37 @@ def load_raw_parquet(asset_id: str) -> pa.Table:
             raise FileNotFoundError(f"Raw parquet asset '{asset_id}' not found at {path}")
         record_read(f"raw/{asset_id}.parquet")
         return pq.read_table(path)
+
+
+def raw_asset_exists(asset_id: str, ext: str = "parquet", max_age_days: int | None = None) -> bool:
+    """Check if a raw asset already exists (local or R2).
+
+    Args:
+        max_age_days: If set, returns False if the asset is older than this many days.
+    """
+    if _is_cloud_mode():
+        if max_age_days is None:
+            cached = _cache_lookup(_raw_key(asset_id, ext))
+            if cached:
+                return True
+        from .r2 import head_object
+        meta = head_object(_raw_key(asset_id, ext))
+        if meta is None:
+            return False
+        if max_age_days is not None:
+            from datetime import datetime, timezone, timedelta
+            age = datetime.now(timezone.utc) - meta['LastModified']
+            return age < timedelta(days=max_age_days)
+        return True
+    else:
+        path = Path(_raw_path(asset_id, ext))
+        if not path.exists():
+            return False
+        if max_age_days is not None:
+            from datetime import datetime, timedelta
+            age = datetime.now() - datetime.fromtimestamp(path.stat().st_mtime)
+            return age < timedelta(days=max_age_days)
+        return True
 
 
 def get_raw_path(asset_id: str, ext: str = "parquet") -> str:

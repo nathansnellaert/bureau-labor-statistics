@@ -19,13 +19,17 @@ def get_s3_client():
     global _s3_client
     if _s3_client is None:
         import boto3
-        config = _get_r2_config()
+        from botocore.config import Config
+        r2_config = _get_r2_config()
+        # 8 attempts with exponential backoff = ~2 min total retry time
+        boto_config = Config(retries={'max_attempts': 8, 'mode': 'adaptive'})
         _s3_client = boto3.client(
             's3',
-            endpoint_url=f"https://{config['account_id']}.r2.cloudflarestorage.com",
-            aws_access_key_id=config['access_key_id'],
-            aws_secret_access_key=config['secret_access_key'],
-            region_name='auto'
+            endpoint_url=f"https://{r2_config['account_id']}.r2.cloudflarestorage.com",
+            aws_access_key_id=r2_config['access_key_id'],
+            aws_secret_access_key=r2_config['secret_access_key'],
+            region_name='auto',
+            config=boto_config
         )
     return _s3_client
 
@@ -44,6 +48,18 @@ def upload_bytes(data: bytes, key: str) -> str:
     bucket = os.environ['R2_BUCKET_NAME']
     client.put_object(Bucket=bucket, Key=key, Body=data)
     return f"s3://{bucket}/{key}"
+
+
+def head_object(key: str) -> dict | None:
+    """Get object metadata from R2 without downloading. Returns None if not found."""
+    client = get_s3_client()
+    bucket = os.environ['R2_BUCKET_NAME']
+    try:
+        return client.head_object(Bucket=bucket, Key=key)
+    except client.exceptions.ClientError as e:
+        if e.response['Error']['Code'] == '404':
+            return None
+        raise
 
 
 def download_bytes(key: str) -> bytes | None:

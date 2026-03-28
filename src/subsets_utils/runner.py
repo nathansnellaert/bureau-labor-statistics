@@ -22,9 +22,8 @@ def main():
     existing_pythonpath = env.get('PYTHONPATH', '')
     env['PYTHONPATH'] = f"{src_path}:{existing_pythonpath}" if existing_pythonpath else src_path
 
-    with open(log_dir / 'output.log', 'w') as f:
-        proc = subprocess.Popen([sys.executable, '-m', 'src.main'], stdout=f, stderr=subprocess.STDOUT, env=env, cwd=Path.cwd())
-        exit_code = proc.wait()
+    proc = subprocess.Popen([sys.executable, '-m', 'src.main'], env=env, cwd=Path.cwd())
+    exit_code = proc.wait()
 
     if exit_code != 0:
         print(f"Failed with exit code {exit_code}" + (" (OOM)" if exit_code == 137 else ""))

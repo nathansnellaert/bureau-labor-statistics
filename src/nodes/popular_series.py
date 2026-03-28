@@ -7,7 +7,7 @@ from the BLS API. Used as fallback for surveys missing from the series catalog.
 import os
 
 from subsets_utils import load_raw_json, save_raw_json
-from utils import rate_limited_get
+from connector_utils import rate_limited_get
 
 POPULAR_URL = "https://api.bls.gov/publicAPI/v2/timeseries/popular"
 

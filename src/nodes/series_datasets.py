@@ -8,7 +8,7 @@ from collections import defaultdict
 
 import pyarrow as pa
 import pyarrow.compute as pc
-from subsets_utils import load_raw_json, upload_data, validate
+from subsets_utils import load_raw_json, merge, publish, validate
 
 # Survey prefix to human-readable topic mapping
 # Format: (dataset_suffix, description)
@@ -253,6 +253,7 @@ def make_metadata(dataset_id: str, survey_desc: str, varying_cols: list[str],
             col_descs[col] = dim_descriptions[col]
 
     return {
+        "id": dataset_id,
         "title": f"BLS {survey_desc}",
         "description": " ".join(desc_parts),
         "column_descriptions": col_descs,
@@ -372,7 +373,12 @@ def run():
 
         test(table, dataset_id)
 
-        upload_data(table, dataset_id)
+        # Key is all varying dimensions plus indicator - this uniquely identifies each row
+        merge_key = varying_cols + ["indicator"]
+        merge(table, dataset_id, key=merge_key)
+
+        metadata = make_metadata(dataset_id, survey_desc, varying_cols, indicators, constants)
+        publish(dataset_id, metadata)
         uploaded += 1
 
     print(f"  Uploaded {uploaded} datasets")

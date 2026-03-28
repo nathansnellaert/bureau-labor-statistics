@@ -17,8 +17,9 @@ def is_cloud() -> bool:
 
 
 def get_connector_name() -> str:
-    """Get current connector name."""
-    return os.environ.get('CONNECTOR_NAME', 'unknown')
+    """Get current connector name. Auto-detects from cwd if not set."""
+    from pathlib import Path
+    return os.environ.get('CONNECTOR_NAME') or Path.cwd().name
 
 
 def get_run_id() -> str:
