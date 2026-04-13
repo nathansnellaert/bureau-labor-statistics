@@ -1,0 +1,278 @@
+"""Fetch time series data from BLS API.
+
+Two modes:
+- backfill: pull the full 20-year window for every selected series. Runs on
+  the first invocation, and again every DEEP_REFRESH_DAYS to catch deep
+  historical revisions that the rolling refresh window would miss.
+- refresh: pull a rolling REFRESH_WINDOW_YEARS window for every series. The
+  transform step uses merge() with (series_id, date) so historical rows are
+  preserved and new/revised rows upserted.
+
+If the BLS daily quota is hit mid-run, partial progress is persisted to
+state and the next invocation resumes from where the previous run stopped.
+"""
+
+from collections import defaultdict
+from datetime import date, datetime
+
+from subsets_utils import load_raw_json, save_raw_json, load_state, save_state
+from connector_utils import (
+    BATCH_SIZE,
+    DailyQuotaExceeded,
+    fetch_series_batch,
+)
+
+# How many series to fetch per survey prefix (top N by popularity rank)
+SERIES_PER_SURVEY = 500
+
+# Surveys that need more series (annual point-in-time surveys with 1 data point per series)
+HIGH_VOLUME_SURVEYS = {"OE", "WM"}
+SERIES_PER_SURVEY_HIGH_VOLUME = 2000
+
+# Refresh strategy
+BACKFILL_YEARS = 20
+REFRESH_WINDOW_YEARS = 2
+DEEP_REFRESH_DAYS = 90  # Force a backfill if the last one is older than this
+
+# Hardcoded series for important surveys missing from both catalog and popular_series
+FALLBACK_SERIES = {
+    # JOLTS - Job Openings and Labor Turnover Survey
+    "JT": [
+        # Total nonfarm - levels (seasonally adjusted)
+        "JTS000000000000000JOL",  # Job openings level
+        "JTS000000000000000HIL",  # Hires level
+        "JTS000000000000000QUL",  # Quits level
+        "JTS000000000000000LDL",  # Layoffs and discharges level
+        "JTS000000000000000TSL",  # Total separations level
+        # Total nonfarm - rates (seasonally adjusted)
+        "JTS000000000000000JOR",  # Job openings rate
+        "JTS000000000000000HIR",  # Hires rate
+        "JTS000000000000000QUR",  # Quits rate
+        "JTS000000000000000LDR",  # Layoffs and discharges rate
+        "JTS000000000000000TSR",  # Total separations rate
+        # Total private
+        "JTS100000000000000JOL",  # Private job openings level
+        "JTS100000000000000HIL",  # Private hires level
+        "JTS100000000000000QUL",  # Private quits level
+        # Government
+        "JTS900000000000000JOL",  # Government job openings level
+        # By industry - job openings
+        "JTS510000000000000JOL",  # Professional and business services
+        "JTS540000000000000JOL",  # Health care and social assistance
+        "JTS440000000000000JOL",  # Retail trade
+        "JTS720000000000000JOL",  # Accommodation and food services
+        "JTS320000000000000JOL",  # Manufacturing
+        "JTS230000000000000JOL",  # Construction
+    ],
+    # NOTE: QCEW (EN) is NOT available through the BLS timeseries API.
+    # It requires a separate bulk download from
+    # https://www.bls.gov/cew/downloadable-data-files.htm
+}
+
+
+def select_series_from_catalog(catalog: list[dict], popular_data: dict | None, per_survey: int) -> list[str]:
+    """Select top N series per survey prefix from the catalog.
+
+    Falls back to popular_series for surveys missing from catalog, then to
+    the hardcoded FALLBACK_SERIES dict for surveys missing from both.
+    """
+    by_survey = defaultdict(list)
+
+    for entry in catalog:
+        prefix = entry.get('survey_prefix', entry.get('series_id', '')[:2])
+        by_survey[prefix].append(entry)
+
+    selected = []
+    for prefix, series_list in by_survey.items():
+        limit = SERIES_PER_SURVEY_HIGH_VOLUME if prefix in HIGH_VOLUME_SURVEYS else per_survey
+        top_n = series_list[:limit]
+        selected.extend(s['series_id'] for s in top_n)
+
+    if popular_data:
+        catalog_prefixes = set(by_survey.keys())
+        for survey_prefix, series_list in popular_data.get("by_survey", {}).items():
+            if survey_prefix not in catalog_prefixes:
+                for series in series_list:
+                    if series and series.get("seriesID"):
+                        selected.append(series["seriesID"])
+                        catalog_prefixes.add(survey_prefix)
+
+    covered_prefixes = set(by_survey.keys())
+    if popular_data:
+        covered_prefixes.update(
+            p for p, s in popular_data.get("by_survey", {}).items()
+            if any(x and x.get("seriesID") for x in s)
+        )
+    for survey_prefix, series_ids in FALLBACK_SERIES.items():
+        if survey_prefix not in covered_prefixes:
+            selected.extend(series_ids)
+            print(f"  Added {len(series_ids)} hardcoded {survey_prefix} series")
+
+    return selected
+
+
+def load_selected_series() -> list[str]:
+    """Load the list of series IDs to fetch from catalog + popular_series + fallback."""
+    try:
+        popular_data = load_raw_json("popular_series")
+    except FileNotFoundError:
+        popular_data = None
+
+    try:
+        catalog = load_raw_json("series_catalog")
+        series_ids = select_series_from_catalog(catalog, popular_data, SERIES_PER_SURVEY)
+        print(f"  Selected {len(series_ids)} series from catalog ({SERIES_PER_SURVEY} per survey)")
+        if popular_data:
+            print(f"  (with fallback to popular_series for missing surveys)")
+        return series_ids
+    except FileNotFoundError:
+        print("  No series_catalog found, falling back to popular_series")
+        if not popular_data:
+            raise FileNotFoundError("No series_catalog or popular_series found")
+        ids = set()
+        for series in popular_data.get("overall", []):
+            if series and series.get("seriesID"):
+                ids.add(series["seriesID"])
+        for survey_series in popular_data.get("by_survey", {}).values():
+            for series in survey_series:
+                if series and series.get("seriesID"):
+                    ids.add(series["seriesID"])
+        print(f"  Found {len(ids)} series from popular_series")
+        return list(ids)
+
+
+def determine_mode(state: dict) -> str:
+    """Decide whether this run should backfill or refresh."""
+    if not state.get("backfill_done"):
+        return "backfill"
+
+    last = state.get("last_full_refresh")
+    if not last:
+        return "backfill"
+
+    try:
+        last_date = datetime.strptime(last, "%Y-%m-%d").date()
+    except ValueError:
+        return "backfill"
+
+    if (date.today() - last_date).days >= DEEP_REFRESH_DAYS:
+        print(f"  Last full refresh was {(date.today() - last_date).days} days ago, triggering deep refresh")
+        return "backfill"
+
+    return "refresh"
+
+
+def date_range_for_mode(mode: str) -> tuple[int, int]:
+    """Return (start_year, end_year) for a fetch mode."""
+    today = date.today()
+    # BLS publishes annual data in early February of the following year. If we're
+    # in January or February, the current year may have no data yet.
+    end_year = today.year - 1 if today.month <= 2 else today.year
+    if mode == "backfill":
+        start_year = end_year - (BACKFILL_YEARS - 1)
+    else:
+        start_year = end_year - (REFRESH_WINDOW_YEARS - 1)
+    return start_year, end_year
+
+
+def run():
+    """Fetch time series data and persist it to data/raw/series_data.json.
+
+    Returns True if the BLS daily quota was hit and more work remains.
+    """
+    series_ids = load_selected_series()
+
+    state = load_state("series_data")
+    mode = determine_mode(state)
+    start_year, end_year = date_range_for_mode(mode)
+    print(f"  Mode: {mode} ({start_year}-{end_year})")
+
+    completed_ids = set(state.get("completed_series", []))
+    remaining_ids = [sid for sid in series_ids if sid not in completed_ids]
+    print(f"  {len(remaining_ids)} series remaining to fetch")
+
+    if not remaining_ids:
+        # Nothing to do - finalize state if needed
+        _finalize_state(state, mode)
+        return False
+
+    all_series_data = state.get("series_data", [])
+    total_batches = (len(remaining_ids) + BATCH_SIZE - 1) // BATCH_SIZE
+    quota_exceeded = False
+
+    for i in range(0, len(remaining_ids), BATCH_SIZE):
+        batch = remaining_ids[i:i + BATCH_SIZE]
+        batch_num = i // BATCH_SIZE + 1
+        print(f"  Batch {batch_num}/{total_batches}: fetching {len(batch)} series")
+
+        try:
+            series_data_list = fetch_series_batch(batch, start_year, end_year)
+            if series_data_list:
+                all_series_data.extend(series_data_list)
+                print(f"    Retrieved {len(series_data_list)} series with data")
+
+            completed_ids.update(batch)
+            save_state("series_data", {
+                **state,
+                "completed_series": list(completed_ids),
+                "series_data": all_series_data,
+            })
+
+        except DailyQuotaExceeded as e:
+            print(f"  Daily API quota exceeded: {e}")
+            print(f"  Saving progress ({len(all_series_data)} series fetched so far)")
+            quota_exceeded = True
+            save_state("series_data", {
+                **state,
+                "completed_series": list(completed_ids),
+                "series_data": all_series_data,
+            })
+            break
+
+        except Exception as e:
+            print(f"    Error in batch: {e}")
+            save_state("series_data", {
+                **state,
+                "completed_series": list(completed_ids),
+                "series_data": all_series_data,
+            })
+
+    print(f"  Total: {len(all_series_data)} series with data")
+
+    save_raw_json({
+        "series": all_series_data,
+        "start_year": start_year,
+        "end_year": end_year,
+        "mode": mode,
+    }, "series_data")
+
+    if quota_exceeded and len(completed_ids) < len(series_ids):
+        print(f"  {len(series_ids) - len(completed_ids)} series remaining - will resume next run")
+        return True
+
+    _finalize_state(state, mode)
+    return False
+
+
+def _finalize_state(state: dict, mode: str) -> None:
+    """Mark this run complete and clear the ephemeral resume buffer."""
+    new_state = {
+        "backfill_done": True,
+        "last_full_refresh": state.get("last_full_refresh"),
+    }
+    if mode == "backfill":
+        new_state["last_full_refresh"] = date.today().isoformat()
+    save_state("series_data", new_state)
+    print(f"  State finalized: backfill_done=True, last_full_refresh={new_state['last_full_refresh']}")
+
+
+from nodes.series_catalog import run as series_catalog_run
+from nodes.popular_series import run as popular_series_run
+
+NODES = {
+    run: [series_catalog_run, popular_series_run],
+}
+
+
+if __name__ == "__main__":
+    run()

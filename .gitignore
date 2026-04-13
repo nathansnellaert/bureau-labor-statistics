@@ -1,0 +1,58 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+
+# Poetry
+poetry.lock
+
+# Environment variables
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.bak
+
+# Only track production state
+.state/
+!.state/prod/
+**/http_cache/
+logs/
+
+# Synced from template
+# Cache and logs
+# Development files
+# Output data (subsets is published, raw is local cache)
+# Python environment
+# State (keep prod state for tracking)
+.venv/
+__pycache__/
+data/raw/
+data/bls/
+data/bureau-labor-statistics/
+data/catalog/
+data/http_cache/
+bls_series.csv
+dev.py
+dev/
+
+# Synced from template
+# Output data (synced via R2, not git)
+data/
+data

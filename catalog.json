@@ -1,0 +1,296 @@
+{
+  "source": "U.S. Bureau of Labor Statistics Public API v2",
+  "source_url": "https://www.bls.gov/developers/",
+  "license": "U.S. Government Work (public domain)",
+  "selection": "Top ~500 series by BLS popularity rank per survey, with OE and WM bumped to 2,000 because they're point-in-time surveys with one observation per series. JOLTS (JT) ships a 20-series hardcoded fallback because it isn't covered by the catalog or popular_series APIs. Total: ~10,500 series across 28 surveys.",
+  "refresh_strategy": "Two-mode: backfill pulls a 20-year window for every series; refresh pulls a rolling 2-year window. Backfill triggers on first run and again every 90 days to catch deep historical revisions. The transform step uses merge() with (series_id, date) so historical rows are preserved across runs.",
+  "datasets": [
+    {
+      "id": "bls_consumer_prices",
+      "title": "BLS Consumer Price Index (Urban Consumers)",
+      "survey_prefix": "CU",
+      "survey_name": "Consumer Price Index for All Urban Consumers",
+      "source_url": "https://www.bls.gov/cpi/",
+      "frequency": "monthly",
+      "license": "U.S. Government Work (public domain)",
+      "keywords": ["inflation", "cpi", "prices", "urban"]
+    },
+    {
+      "id": "bls_consumer_prices_workers",
+      "title": "BLS Consumer Price Index (Wage Earners)",
+      "survey_prefix": "CW",
+      "survey_name": "Consumer Price Index for Urban Wage Earners and Clerical Workers",
+      "source_url": "https://www.bls.gov/cpi/",
+      "frequency": "monthly",
+      "license": "U.S. Government Work (public domain)",
+      "keywords": ["inflation", "cpi", "wage earners"]
+    },
+    {
+      "id": "bls_consumer_prices_chained",
+      "title": "BLS Chained Consumer Price Index",
+      "survey_prefix": "SU",
+      "survey_name": "Chained Consumer Price Index for All Urban Consumers",
+      "source_url": "https://www.bls.gov/cpi/additional-resources/chained-cpi.htm",
+      "frequency": "monthly",
+      "license": "U.S. Government Work (public domain)",
+      "keywords": ["inflation", "chained cpi", "substitution"]
+    },
+    {
+      "id": "bls_average_prices",
+      "title": "BLS Average Retail Prices",
+      "survey_prefix": "AP",
+      "survey_name": "Average Price Data",
+      "source_url": "https://www.bls.gov/cpi/factsheets/average-prices.htm",
+      "frequency": "monthly",
+      "license": "U.S. Government Work (public domain)",
+      "keywords": ["prices", "retail", "consumer goods"]
+    },
+    {
+      "id": "bls_producer_prices_commodities",
+      "title": "BLS Producer Price Index (Commodities)",
+      "survey_prefix": "WP",
+      "survey_name": "Producer Price Index - Commodities",
+      "source_url": "https://www.bls.gov/ppi/",
+      "frequency": "monthly",
+      "license": "U.S. Government Work (public domain)",
+      "keywords": ["ppi", "wholesale", "commodities"]
+    },
+    {
+      "id": "bls_producer_prices_industry",
+      "title": "BLS Producer Price Index (Industry)",
+      "survey_prefix": "PC",
+      "survey_name": "Producer Price Index - Industry",
+      "source_url": "https://www.bls.gov/ppi/",
+      "frequency": "monthly",
+      "license": "U.S. Government Work (public domain)",
+      "keywords": ["ppi", "industry"]
+    },
+    {
+      "id": "bls_employment_national",
+      "title": "BLS Current Employment Statistics (National)",
+      "survey_prefix": "CE",
+      "survey_name": "Current Employment Statistics - National",
+      "source_url": "https://www.bls.gov/ces/",
+      "frequency": "monthly",
+      "license": "U.S. Government Work (public domain)",
+      "keywords": ["employment", "payroll", "hours", "earnings"]
+    },
+    {
+      "id": "bls_employment_state",
+      "title": "BLS Current Employment Statistics (State and Metro)",
+      "survey_prefix": "SM",
+      "survey_name": "Current Employment Statistics - State and Metro Area",
+      "source_url": "https://www.bls.gov/sae/",
+      "frequency": "monthly",
+      "license": "U.S. Government Work (public domain)",
+      "keywords": ["employment", "state", "metro"]
+    },
+    {
+      "id": "bls_unemployment_local",
+      "title": "BLS Local Area Unemployment Statistics",
+      "survey_prefix": "LA",
+      "survey_name": "Local Area Unemployment Statistics",
+      "source_url": "https://www.bls.gov/lau/",
+      "frequency": "monthly",
+      "license": "U.S. Government Work (public domain)",
+      "keywords": ["unemployment", "local", "state", "county"]
+    },
+    {
+      "id": "bls_labor_force",
+      "title": "BLS Labor Force Statistics",
+      "survey_prefix": "LN",
+      "survey_name": "Labor Force Statistics from the Current Population Survey",
+      "source_url": "https://www.bls.gov/cps/",
+      "frequency": "monthly",
+      "license": "U.S. Government Work (public domain)",
+      "keywords": ["labor force", "participation", "unemployment", "cps"]
+    },
+    {
+      "id": "bls_employment_situation",
+      "title": "BLS Employment Situation by Demographics",
+      "survey_prefix": "LE",
+      "survey_name": "Labor Force Statistics from the CPS - Employment Situation",
+      "source_url": "https://www.bls.gov/cps/",
+      "frequency": "monthly",
+      "license": "U.S. Government Work (public domain)",
+      "keywords": ["employment", "demographics", "age", "gender", "race"]
+    },
+    {
+      "id": "bls_union_membership",
+      "title": "BLS Union Membership",
+      "survey_prefix": "LU",
+      "survey_name": "Union Membership Statistics",
+      "source_url": "https://www.bls.gov/cps/cpslutabs.htm",
+      "frequency": "annual",
+      "license": "U.S. Government Work (public domain)",
+      "keywords": ["unions", "collective bargaining"]
+    },
+    {
+      "id": "bls_business_dynamics",
+      "title": "BLS Business Employment Dynamics",
+      "survey_prefix": "BD",
+      "survey_name": "Business Employment Dynamics",
+      "source_url": "https://www.bls.gov/bdm/",
+      "frequency": "quarterly",
+      "license": "U.S. Government Work (public domain)",
+      "keywords": ["business", "job creation", "job destruction"]
+    },
+    {
+      "id": "bls_job_openings",
+      "title": "BLS Job Openings and Labor Turnover (JOLTS)",
+      "survey_prefix": "JT",
+      "survey_name": "Job Openings and Labor Turnover Survey",
+      "source_url": "https://www.bls.gov/jlt/",
+      "frequency": "monthly",
+      "license": "U.S. Government Work (public domain)",
+      "keywords": ["jolts", "job openings", "hires", "quits", "layoffs"]
+    },
+    {
+      "id": "bls_employment_cost_index",
+      "title": "BLS Employment Cost Index",
+      "survey_prefix": "CI",
+      "survey_name": "Employment Cost Index",
+      "source_url": "https://www.bls.gov/eci/",
+      "frequency": "quarterly",
+      "license": "U.S. Government Work (public domain)",
+      "keywords": ["wages", "compensation", "labor costs"]
+    },
+    {
+      "id": "bls_employer_costs",
+      "title": "BLS Employer Costs for Employee Compensation",
+      "survey_prefix": "CM",
+      "survey_name": "Employer Costs for Employee Compensation",
+      "source_url": "https://www.bls.gov/ncs/ect/",
+      "frequency": "quarterly",
+      "license": "U.S. Government Work (public domain)",
+      "keywords": ["compensation", "benefits", "wages"]
+    },
+    {
+      "id": "bls_occupational_employment",
+      "title": "BLS Occupational Employment and Wage Statistics",
+      "survey_prefix": "OE",
+      "survey_name": "Occupational Employment and Wage Statistics",
+      "source_url": "https://www.bls.gov/oes/",
+      "frequency": "annual",
+      "license": "U.S. Government Work (public domain)",
+      "keywords": ["occupations", "wages", "employment"]
+    },
+    {
+      "id": "bls_modeled_wages",
+      "title": "BLS Modeled Wage Estimates",
+      "survey_prefix": "WM",
+      "survey_name": "Modeled Wage Estimates",
+      "source_url": "https://www.bls.gov/mwe/",
+      "frequency": "annual",
+      "license": "U.S. Government Work (public domain)",
+      "keywords": ["wages", "modeled estimates"]
+    },
+    {
+      "id": "bls_time_use",
+      "title": "BLS American Time Use Survey",
+      "survey_prefix": "TU",
+      "survey_name": "American Time Use Survey",
+      "source_url": "https://www.bls.gov/tus/",
+      "frequency": "annual",
+      "license": "U.S. Government Work (public domain)",
+      "keywords": ["time use", "leisure", "household activities"]
+    },
+    {
+      "id": "bls_productivity",
+      "title": "BLS Labor Productivity and Costs",
+      "survey_prefix": "PR",
+      "survey_name": "Labor Productivity and Costs",
+      "source_url": "https://www.bls.gov/productivity/",
+      "frequency": "quarterly",
+      "license": "U.S. Government Work (public domain)",
+      "keywords": ["productivity", "unit labor costs"]
+    },
+    {
+      "id": "bls_international_prices",
+      "title": "BLS Import and Export Price Indexes",
+      "survey_prefix": "IP",
+      "survey_name": "International Price Program",
+      "source_url": "https://www.bls.gov/mxp/",
+      "frequency": "monthly",
+      "license": "U.S. Government Work (public domain)",
+      "keywords": ["imports", "exports", "international prices"]
+    },
+    {
+      "id": "bls_employment_projections",
+      "title": "BLS Employment Projections",
+      "survey_prefix": "EI",
+      "survey_name": "Employment Projections",
+      "source_url": "https://www.bls.gov/emp/",
+      "frequency": "biennial",
+      "license": "U.S. Government Work (public domain)",
+      "keywords": ["projections", "forecasts", "occupations"]
+    },
+    {
+      "id": "bls_consumer_expenditure",
+      "title": "BLS Consumer Expenditure Survey",
+      "survey_prefix": "CX",
+      "survey_name": "Consumer Expenditure Survey",
+      "source_url": "https://www.bls.gov/cex/",
+      "frequency": "annual",
+      "license": "U.S. Government Work (public domain)",
+      "keywords": ["spending", "household expenditure"]
+    },
+    {
+      "id": "bls_family_labor_force",
+      "title": "BLS Family Labor Force Statistics",
+      "survey_prefix": "FM",
+      "survey_name": "Marital and Family Labor Force Statistics",
+      "source_url": "https://www.bls.gov/cps/",
+      "frequency": "annual",
+      "license": "U.S. Government Work (public domain)",
+      "keywords": ["family", "marital", "labor force", "cps"]
+    },
+    {
+      "id": "bls_occupational_requirements",
+      "title": "BLS Occupational Requirements Survey",
+      "survey_prefix": "OR",
+      "survey_name": "Occupational Requirements Survey",
+      "source_url": "https://www.bls.gov/ors/",
+      "frequency": "annual",
+      "license": "U.S. Government Work (public domain)",
+      "keywords": ["occupations", "requirements", "physical demands"]
+    },
+    {
+      "id": "bls_total_factor_productivity",
+      "title": "BLS Total Factor Productivity",
+      "survey_prefix": "MP",
+      "survey_name": "Multifactor / Total Factor Productivity",
+      "source_url": "https://www.bls.gov/productivity/",
+      "frequency": "annual",
+      "license": "U.S. Government Work (public domain)",
+      "keywords": ["productivity", "total factor productivity"]
+    },
+    {
+      "id": "bls_producer_prices_discontinued",
+      "title": "BLS Producer Price Index (Discontinued Series)",
+      "survey_prefix": "WD",
+      "survey_name": "Producer Price Index - Discontinued",
+      "source_url": "https://www.bls.gov/ppi/",
+      "frequency": "monthly",
+      "license": "U.S. Government Work (public domain)",
+      "keywords": ["ppi", "discontinued", "historical"]
+    },
+    {
+      "id": "bls_work_stoppages",
+      "title": "BLS Work Stoppages",
+      "survey_prefix": "WS",
+      "survey_name": "Work Stoppages",
+      "source_url": "https://www.bls.gov/wsp/",
+      "frequency": "annual",
+      "license": "U.S. Government Work (public domain)",
+      "keywords": ["strikes", "lockouts", "work stoppages"]
+    }
+  ],
+  "excluded": [
+    {
+      "survey_prefix": "EN",
+      "survey_name": "Quarterly Census of Employment and Wages (QCEW)",
+      "reason": "QCEW is not exposed via the BLS public timeseries API. It is published as bulk download files at https://www.bls.gov/cew/downloadable-data-files.htm and would need a separate ingestion path."
+    }
+  ]
+}

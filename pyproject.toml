@@ -1,0 +1,27 @@
+[project]
+name = "bureau-labor-statistics"
+version = "1.0.0"
+description = "Bureau of Labor Statistics data connector"
+requires-python = ">=3.11"
+dependencies = [
+    "psutil>=5.9.0",
+ "beautifulsoup4>=4.13.5",
+ "boto3",
+ "duckdb",
+ "httpx",
+ "pandas",
+ "pyarrow",
+ "deltalake>=0.17.0",
+ "ratelimit",
+ "requests>=2.31.0",
+ "sqlalchemy>=2.0.43",
+ "tenacity",
+ "tqdm>=4.67.1",
+]
+
+[build-system]
+requires = [ "hatchling",]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = [ "assets", "utils",]
