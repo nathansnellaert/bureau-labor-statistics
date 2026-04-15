@@ -46,5 +46,5 @@ jobs:
         R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
         DAG_TARGET: ${{ inputs.dag_target }}
         DAG_ON_FAILURE: ${{ inputs.dag_on_failure }}
-        PARENT_RUN_ID: ${{ inputs.run_id }}
+        RUN_ID: ${{ inputs.run_id }}
         BLS_API_KEY: ${{ secrets.BLS_API_KEY }}
