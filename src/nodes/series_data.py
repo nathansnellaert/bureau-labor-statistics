@@ -229,13 +229,13 @@ def run():
             })
             break
 
-        except Exception as e:
-            print(f"    Error in batch: {e}")
+        except Exception:
             save_state("series_data", {
                 **state,
                 "completed_series": list(completed_ids),
                 "series_data": all_series_data,
             })
+            raise
 
     print(f"  Total: {len(all_series_data)} series with data")
 

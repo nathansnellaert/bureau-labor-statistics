@@ -8,6 +8,7 @@ via merge() so refresh runs only update changed/new rows.
 import json
 import os
 from collections import defaultdict
+from datetime import date
 
 import pyarrow as pa
 import pyarrow.compute as pc
@@ -294,7 +295,7 @@ def test(table: pa.Table, dataset_id: str) -> None:
         year_part = d[:4]
         assert year_part.isdigit(), f"Date should start with year: {d}"
         year = int(year_part)
-        assert 1900 <= year <= 2030, f"Year out of range: {year}"
+        assert 1900 <= year <= date.today().year + 2, f"Year out of range: {year}"
 
     value_col = table.column("value")
     assert pa.types.is_floating(value_col.type), f"{dataset_id}: value should be float"

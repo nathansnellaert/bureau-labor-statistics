@@ -419,16 +419,37 @@ def list_raw_files(pattern: str) -> list[str]:
 def raw_asset_exists(asset_id: str, ext: str = "parquet", max_age_days: int | None = None) -> bool:
     """Check if a raw asset exists. Optionally check it is fresh enough.
 
-    In dev mode, checks both the local dev dir AND the SSD mirror — either
-    one counts as "exists". This keeps download-if-missing nodes from
-    re-downloading data already present in the mirror.
+    Works for both s3:// URIs (via fsspec `fs.info`) and local paths. In
+    dev mode, falls back to the SSD mirror if the local dev file is
+    missing — so `download-if-missing` nodes don't re-fetch data already
+    present in the mirror.
 
     Args:
         max_age_days: If set, returns False if the asset is older than this many days.
     """
     uri = raw_uri(asset_id, ext)
 
-    def _check(p: Path) -> bool:
+    if uri.startswith("s3://"):
+        fs = get_fs(uri)
+        if not fs.exists(uri):
+            return False
+        if max_age_days is None:
+            return True
+        try:
+            info = fs.info(uri)
+        except FileNotFoundError:
+            return False
+        mtime = info.get("LastModified") or info.get("mtime")
+        if mtime is None:
+            return True  # existence confirmed, age unknown — assume fresh
+        if hasattr(mtime, "tzinfo") and mtime.tzinfo is not None:
+            now = datetime.now(mtime.tzinfo)
+        else:
+            now = datetime.now()
+        return (now - mtime) < timedelta(days=max_age_days)
+
+    # Local dev: check local dev dir, then SSD mirror.
+    def _check_local(p: Path) -> bool:
         if not p.exists():
             return False
         if max_age_days is not None:
@@ -436,12 +457,7 @@ def raw_asset_exists(asset_id: str, ext: str = "parquet", max_age_days: int | No
             return age < timedelta(days=max_age_days)
         return True
 
-    if _check(Path(uri)):
+    if _check_local(Path(uri)):
         return True
     mirror = mirror_raw_path(asset_id, ext)
-    return mirror is not None and _check(mirror)
-
-
-def get_raw_path(asset_id: str, ext: str = "parquet") -> str:
-    """Get the URI for a raw asset (s3:// in cloud, local path otherwise)."""
-    return raw_uri(asset_id, ext)
+    return mirror is not None and _check_local(mirror)
